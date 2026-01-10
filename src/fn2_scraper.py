@@ -249,15 +249,46 @@ def parse_wayke_fn2(max_price: int, max_mileage: int) -> List[Offer]:
 
     return offers
 
+def parse_blocket_rss(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.blocket.se/annonser/hela_sverige/fordon/bilar.rss?q=Honda%20Civic%20Type%20R%20FN2"
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "xml")
+
+    offers = []
+    for item in soup.find_all("item"):
+        title = item.title.text
+        link = item.link.text
+
+        if "FN2" not in title and "Type R" not in title:
+            continue
+
+        # Blocket RSS nie ma ceny → pobieramy z HTML ogłoszenia
+        try:
+            offer_html = fetch_html(link)
+            offer_soup = BeautifulSoup(offer_html, "html.parser")
+            price_el = offer_soup.select_one(".price")
+            price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
+        except:
+            continue
+
+        if price > max_price:
+            continue
+
+        offers.append(
+            Offer("blocket-rss", title, price, 0, 0, link, "Sweden", datetime.utcnow())
+        )
+
+    return offers
 
 
 def get_all_offers(max_price: int, max_mileage: int) -> List[Offer]:
     offers = []
-    offers.extend(parse_blocket_fn2(max_price, max_mileage))
     offers.extend(parse_bytbil_fn2(max_price, max_mileage))
     offers.extend(parse_wayke_fn2(max_price, max_mileage))
     offers.extend(parse_otomoto_fn2(max_price, max_mileage))
     offers.extend(parse_olx_fn2(max_price, max_mileage))
+    offers.extend(parse_blocket_rss(max_price, max_mileage))
+
 
     offers_sorted = sorted(offers, key=lambda o: o.price)
     return offers_sorted

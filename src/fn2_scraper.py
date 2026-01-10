@@ -95,6 +95,161 @@ def parse_blocket_fn2(max_price: int, max_mileage: int) -> List[Offer]:
 
     return offers
 
+def parse_otomoto_fn2(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.otomoto.pl/osobowe/honda/civic/od-2007?search%5Bfilter_enum_generation%5D=gen-viii-type-r-fn2"
+
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    offers = []
+
+    for card in soup.select("article"):
+        title_el = card.select_one("h2")
+        link_el = card.select_one("a")
+        price_el = card.select_one("span.offer-price__number")
+        mileage_el = card.select_one("li[data-code='mileage']")
+        year_el = card.select_one("li[data-code='year']")
+
+        if not (title_el and link_el and price_el):
+            continue
+
+        title = title_el.get_text(strip=True)
+        if "Type R" not in title:
+            continue
+
+        url_offer = link_el["href"]
+
+        price = int(price_el.get_text(strip=True).split()[0].replace(" ", ""))
+        if price > max_price:
+            continue
+
+        mileage = 0
+        if mileage_el:
+            mileage = int(mileage_el.get_text(strip=True).split()[0].replace(" ", ""))
+
+        if mileage > max_mileage:
+            continue
+
+        year = int(year_el.get_text(strip=True).split()[0]) if year_el else 0
+
+        offers.append(
+            Offer("otomoto", title, price, mileage, year, url_offer, "Poland", datetime.utcnow())
+        )
+
+    return offers
+
+def parse_olx_fn2(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.olx.pl/motoryzacja/samochody/q-honda-civic-type-r-fn2/"
+
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    offers = []
+
+    for card in soup.select("div.offer-wrapper"):
+        title_el = card.select_one("h3")
+        link_el = card.select_one("a")
+        price_el = card.select_one(".price strong")
+
+        if not (title_el and link_el and price_el):
+            continue
+
+        title = title_el.get_text(strip=True)
+        if "Type R" not in title:
+            continue
+
+        url_offer = link_el["href"]
+
+        price = int(price_el.get_text(strip=True).split()[0].replace(" ", ""))
+        if price > max_price:
+            continue
+
+        offers.append(
+            Offer("olx", title, price, 0, 0, url_offer, "Poland", datetime.utcnow())
+        )
+
+    return offers
+
+def parse_bytbil_fn2(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.bytbil.com/sok?q=Honda%20Civic%20Type%20R%20FN2"
+
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    offers = []
+
+    for card in soup.select("div.list-item"):
+        title_el = card.select_one("h2")
+        link_el = card.select_one("a")
+        price_el = card.select_one(".price")
+        mileage_el = card.select_one(".mileage")
+        year_el = card.select_one(".year")
+
+        if not (title_el and link_el and price_el):
+            continue
+
+        title = title_el.get_text(strip=True)
+        if "Type R" not in title:
+            continue
+
+        url_offer = "https://www.bytbil.com" + link_el["href"]
+
+        price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
+        if price > max_price:
+            continue
+
+        mileage = int(mileage_el.get_text(strip=True).replace(" ", "").replace("mil", "")) if mileage_el else 0
+        if mileage > max_mileage:
+            continue
+
+        year = int(year_el.get_text(strip=True)) if year_el else 0
+
+        offers.append(
+            Offer("bytbil", title, price, mileage, year, url_offer, "Sweden", datetime.utcnow())
+        )
+
+    return offers
+
+def parse_wayke_fn2(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.wayke.se/sok?q=Honda%20Civic%20Type%20R%20FN2"
+
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    offers = []
+
+    for card in soup.select("a.vehicle-card"):
+        title_el = card.select_one("h3")
+        price_el = card.select_one(".price")
+        mileage_el = card.select_one(".mileage")
+        year_el = card.select_one(".year")
+
+        if not (title_el and price_el):
+            continue
+
+        title = title_el.get_text(strip=True)
+        if "Type R" not in title:
+            continue
+
+        url_offer = "https://www.wayke.se" + card["href"]
+
+        price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
+        if price > max_price:
+            continue
+
+        mileage = int(mileage_el.get_text(strip=True).replace(" ", "").replace("mil", "")) if mileage_el else 0
+        if mileage > max_mileage:
+            continue
+
+        year = int(year_el.get_text(strip=True)) if year_el else 0
+
+        offers.append(
+            Offer("wayke", title, price, mileage, year, url_offer, "Sweden", datetime.utcnow())
+        )
+
+    return offers
+
+
 
 def get_all_offers(max_price: int, max_mileage: int) -> List[Offer]:
     offers = []

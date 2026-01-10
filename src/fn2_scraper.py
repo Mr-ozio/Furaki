@@ -294,8 +294,11 @@ def main():
 
     offers = get_all_offers(max_price_sek, max_mileage_km)
 
-    save_offers_csv(offers, "data/fn2_sweden.csv")
-    save_offers_md(offers, "reports/fn2_sweden_latest.md")
+    save_offers_csv([o for o in offers if o.country == "Sweden"], "data/fn2_sweden.csv")
+    save_offers_csv([o for o in offers if o.country == "Poland"], "data/fn2_poland.csv")
+
+    save_offers_md([o for o in offers if o.country == "Sweden"], "reports/fn2_sweden_latest.md")
+    save_offers_md([o for o in offers if o.country == "Poland"], "reports/fn2_poland_latest.md")
 
 
 if __name__ == "__main__":

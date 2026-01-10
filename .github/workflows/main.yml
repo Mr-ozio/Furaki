@@ -1,0 +1,14 @@
+name: Test FN2 Finder
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # codziennie o 6:00
+  workflow_dispatch:       # pozwala uruchomić ręcznie
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run script
+        run: python scraper.py

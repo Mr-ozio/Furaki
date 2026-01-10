@@ -26,74 +26,109 @@ def fetch_html(url: str) -> str:
     return resp.text
 
 
-def parse_blocket_fn2(max_price: int, max_mileage: int) -> List[Offer]:
-    url = (
-        "https://www.blocket.se/annonser/hela_sverige/fordon/bilar?"
-        "q=Honda%20Civic%20Type%20R%20FN2"
-    )
+# ============================================================
+#  BLOCKET – RSS (działa w GitHub Actions, brak 403)
+# ============================================================
+
+def parse_blocket_rss(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.blocket.se/annonser/hela_sverige/fordon/bilar.rss?q=Honda%20Civic%20Type%20R%20FN2"
 
     html = fetch_html(url)
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "xml")
 
     offers = []
 
-    for card in soup.select("article"):
-        title_el = card.select_one("h2")
-        link_el = card.select_one("a")
-        price_el = card.select_one(".price")
-        mileage_el = card.select_one(".mileage")
-        year_el = card.select_one(".year")
+    for item in soup.find_all("item"):
+        title = item.title.text
+        link = item.link.text
 
-        if not (title_el and link_el and price_el):
+        if "FN2" not in title and "Type R" not in title:
             continue
 
-        title = title_el.get_text(strip=True)
-        if "FN2" not in title:
-            continue
-
-        url_offer = "https://www.blocket.se" + link_el["href"]
-
-        price_text = price_el.get_text(strip=True).replace(" ", "").replace("kr", "")
+        # Pobieramy cenę z HTML ogłoszenia
         try:
-            price = int(price_text)
-        except ValueError:
+            offer_html = fetch_html(link)
+            offer_soup = BeautifulSoup(offer_html, "html.parser")
+            price_el = offer_soup.select_one(".price")
+            if not price_el:
+                continue
+            price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
+        except:
             continue
 
         if price > max_price:
             continue
 
-        mileage = None
-        if mileage_el:
-            mileage_text = mileage_el.get_text(strip=True).replace(" ", "").replace("mil", "")
-            try:
-                mileage = int(mileage_text)
-            except ValueError:
-                mileage = None
-
-        if mileage is not None and mileage > max_mileage:
-            continue
-
-        year = None
-        if year_el:
-            try:
-                year = int(year_el.get_text(strip=True)[:4])
-            except ValueError:
-                year = None
-
         offers.append(
             Offer(
-                source="blocket",
+                source="blocket-rss",
                 title=title,
                 price=price,
-                mileage=mileage or 0,
-                year=year or 0,
-                url=url_offer,
+                mileage=0,
+                year=0,
+                url=link,
                 country="Sweden",
                 created_at=datetime.utcnow()
             )
         )
 
     return offers
+
+
+# ============================================================
+#  WAYKE
+# ============================================================
+
+def parse_wayke_fn2(max_price: int, max_mileage: int) -> List[Offer]:
+    url = "https://www.wayke.se/sok?q=Honda%20Civic%20Type%20R%20FN2"
+
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    offers = []
+
+    for card in soup.select("a.vehicle-card"):
+        title_el = card.select_one("h3")
+        price_el = card.select_one(".price")
+        mileage_el = card.select_one(".mileage")
+        year_el = card.select_one(".year")
+
+        if not (title_el and price_el):
+            continue
+
+        title = title_el.get_text(strip=True)
+        if "Type R" not in title:
+            continue
+
+        url_offer = "https://www.wayke.se" + card["href"]
+
+        price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
+        if price > max_price:
+            continue
+
+        mileage_mil = 0
+        if mileage_el:
+            try:
+                mileage_mil = int(mileage_el.get_text(strip=True).replace(" ", "").replace("mil", ""))
+            except:
+                mileage_mil = 0
+
+        mileage_km = mileage_mil * 10
+        if mileage_km > max_mileage:
+            continue
+
+        year = int(year_el.get_text(strip=True)) if year_el else 0
+
+        offers.append(
+            Offer("wayke", title, price, mileage_km, year, url_offer, "Sweden", datetime.utcnow())
+        )
+
+    return offers
+
+
+# ============================================================
+#  OTOMOTO
+# ============================================================
 
 def parse_otomoto_fn2(max_price: int, max_mileage: int) -> List[Offer]:
     url = "https://www.otomoto.pl/osobowe/honda/civic/od-2007?search%5Bfilter_enum_generation%5D=gen-viii-type-r-fn2"
@@ -125,7 +160,10 @@ def parse_otomoto_fn2(max_price: int, max_mileage: int) -> List[Offer]:
 
         mileage = 0
         if mileage_el:
-            mileage = int(mileage_el.get_text(strip=True).split()[0].replace(" ", ""))
+            try:
+                mileage = int(mileage_el.get_text(strip=True).split()[0].replace(" ", ""))
+            except:
+                mileage = 0
 
         if mileage > max_mileage:
             continue
@@ -137,6 +175,11 @@ def parse_otomoto_fn2(max_price: int, max_mileage: int) -> List[Offer]:
         )
 
     return offers
+
+
+# ============================================================
+#  OLX
+# ============================================================
 
 def parse_olx_fn2(max_price: int, max_mileage: int) -> List[Offer]:
     url = "https://www.olx.pl/motoryzacja/samochody/q-honda-civic-type-r-fn2/"
@@ -170,134 +213,15 @@ def parse_olx_fn2(max_price: int, max_mileage: int) -> List[Offer]:
 
     return offers
 
-def parse_bytbil_fn2(max_price: int, max_mileage: int) -> List[Offer]:
-    url = "https://www.bytbil.com/sok?q=Honda%20Civic%20Type%20R%20FN2"
 
-    html = fetch_html(url)
-    soup = BeautifulSoup(html, "lxml")
-
-    offers = []
-
-    for card in soup.select("div.list-item"):
-        title_el = card.select_one("h2")
-        link_el = card.select_one("a")
-        price_el = card.select_one(".price")
-        mileage_el = card.select_one(".mileage")
-        year_el = card.select_one(".year")
-
-        if not (title_el and link_el and price_el):
-            continue
-
-        title = title_el.get_text(strip=True)
-        if "Type R" not in title:
-            continue
-
-        url_offer = "https://www.bytbil.com" + link_el["href"]
-
-        price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
-        if price > max_price:
-            continue
-
-        mileage = int(mileage_el.get_text(strip=True).replace(" ", "").replace("mil", "")) if mileage_el else 0
-        if mileage > max_mileage:
-            continue
-
-        year = int(year_el.get_text(strip=True)) if year_el else 0
-
-        offers.append(
-            Offer("bytbil", title, price, mileage, year, url_offer, "Sweden", datetime.utcnow())
-        )
-
-    return offers
-
-def parse_wayke_fn2(max_price: int, max_mileage: int) -> List[Offer]:
-    url = "https://www.wayke.se/sok?q=Honda%20Civic%20Type%20R%20FN2"
-
-    html = fetch_html(url)
-    soup = BeautifulSoup(html, "lxml")
-
-    offers = []
-
-    for card in soup.select("a.vehicle-card"):
-        title_el = card.select_one("h3")
-        price_el = card.select_one(".price")
-        mileage_el = card.select_one(".mileage")
-        year_el = card.select_one(".year")
-
-        if not (title_el and price_el):
-            continue
-
-        title = title_el.get_text(strip=True)
-        if "Type R" not in title:
-            continue
-
-        url_offer = "https://www.wayke.se" + card["href"]
-
-        price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
-        if price > max_price:
-            continue
-
-        mileage = int(mileage_el.get_text(strip=True).replace(" ", "").replace("mil", "")) if mileage_el else 0
-        if mileage > max_mileage:
-            continue
-
-        year = int(year_el.get_text(strip=True)) if year_el else 0
-
-        offers.append(
-            Offer("wayke", title, price, mileage, year, url_offer, "Sweden", datetime.utcnow())
-        )
-
-    return offers
-
-def parse_blocket_rss(max_price: int, max_mileage: int) -> List[Offer]:
-    url = "https://www.blocket.se/annonser/hela_sverige/fordon/bilar.rss?q=Honda%20Civic%20Type%20R%20FN2"
-    html = fetch_html(url)
-    soup = BeautifulSoup(html, "xml")
-
-    offers = []
-    for item in soup.find_all("item"):
-        title = item.title.text
-        link = item.link.text
-
-        if "FN2" not in title and "Type R" not in title:
-            continue
-
-        # Blocket RSS nie ma ceny → pobieramy z HTML ogłoszenia
-        try:
-            offer_html = fetch_html(link)
-            offer_soup = BeautifulSoup(offer_html, "html.parser")
-            price_el = offer_soup.select_one(".price")
-            price = int(price_el.get_text(strip=True).replace(" ", "").replace("kr", ""))
-        except:
-            continue
-
-        if price > max_price:
-            continue
-
-        offers.append(
-            Offer("blocket-rss", title, price, 0, 0, link, "Sweden", datetime.utcnow())
-        )
-
-    return offers
-
-
-def get_all_offers(max_price: int, max_mileage: int) -> List[Offer]:
-    offers = []
-    offers.extend(parse_wayke_fn2(max_price, max_mileage))
-    offers.extend(parse_otomoto_fn2(max_price, max_mileage))
-    offers.extend(parse_olx_fn2(max_price, max_mileage))
-    offers.extend(parse_blocket_rss(max_price, max_mileage))
-
-
-    offers_sorted = sorted(offers, key=lambda o: o.price)
-    return offers_sorted
-
+# ============================================================
+#  ZAPIS CSV / MD
+# ============================================================
 
 def save_offers_csv(offers: List[Offer], path: str):
-    with open(path, "a", newline="", encoding="utf-8") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        if f.tell() == 0:
-            writer.writerow(["created_at", "country", "source", "title", "price", "mileage", "year", "url"])
+        writer.writerow(["created_at", "country", "source", "title", "price", "mileage", "year", "url"])
         for o in offers:
             writer.writerow([
                 o.created_at.isoformat(),
@@ -318,17 +242,34 @@ def save_offers_md(offers: List[Offer], path: str):
             f.write(f"- **{o.price}** – {o.year} – {o.mileage} km – {o.title} – [{o.url}]({o.url}) ({o.source})\n")
 
 
+# ============================================================
+#  MAIN – ROZDZIELONE PL / SE
+# ============================================================
+
 def main():
-    max_price_sek = 100_000
-    max_mileage_km = 150_000
+    max_price_se = 250_000      # SEK
+    max_price_pl = 250_000      # PLN
+    max_mileage_km = 300_000
 
-    offers = get_all_offers(max_price_sek, max_mileage_km)
+    # Szwecja
+    offers_se = []
+    offers_se.extend(parse_blocket_rss(max_price_se, max_mileage_km))
+    offers_se.extend(parse_wayke_fn2(max_price_se, max_mileage_km))
 
-    save_offers_csv([o for o in offers if o.country == "Sweden"], "data/fn2_sweden.csv")
-    save_offers_csv([o for o in offers if o.country == "Poland"], "data/fn2_poland.csv")
+    # Polska
+    offers_pl = []
+    offers_pl.extend(parse_otomoto_fn2(max_price_pl, max_mileage_km))
+    offers_pl.extend(parse_olx_fn2(max_price_pl, max_mileage_km))
 
-    save_offers_md([o for o in offers if o.country == "Sweden"], "reports/fn2_sweden_latest.md")
-    save_offers_md([o for o in offers if o.country == "Poland"], "reports/fn2_poland_latest.md")
+    # Zapis
+    save_offers_csv(offers_se, "data/fn2_sweden.csv")
+    save_offers_csv(offers_pl, "data/fn2_poland.csv")
+
+    save_offers_md(offers_se, "reports/fn2_sweden_latest.md")
+    save_offers_md(offers_pl, "reports/fn2_poland_latest.md")
+
+    print(f"Szwecja: {len(offers_se)} ofert")
+    print(f"Polska: {len(offers_pl)} ofert")
 
 
 if __name__ == "__main__":

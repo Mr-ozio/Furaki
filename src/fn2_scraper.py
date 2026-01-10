@@ -254,6 +254,11 @@ def parse_wayke_fn2(max_price: int, max_mileage: int) -> List[Offer]:
 def get_all_offers(max_price: int, max_mileage: int) -> List[Offer]:
     offers = []
     offers.extend(parse_blocket_fn2(max_price, max_mileage))
+    offers.extend(parse_bytbil_fn2(max_price, max_mileage))
+    offers.extend(parse_wayke_fn2(max_price, max_mileage))
+    offers.extend(parse_otomoto_fn2(max_price, max_mileage))
+    offers.extend(parse_olx_fn2(max_price, max_mileage))
+
     offers_sorted = sorted(offers, key=lambda o: o.price)
     return offers_sorted
 

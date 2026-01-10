@@ -1,14 +1,36 @@
-name: Test FN2 Finder
+name: FN2 Finder – Daily Scraper
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # codziennie o 6:00
-  workflow_dispatch:       # pozwala uruchomić ręcznie
+    - cron: "0 6 * * *"   # codziennie o 06:00
+  workflow_dispatch:       # możliwość ręcznego uruchomienia
 
 jobs:
-  run-script:
+  scrape:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Run script
-        run: python scraper.py
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        run: python src/fn2_scraper.py
+
+      - name: Run trend analysis
+        run: python src/fn2_trend.py
+
+      - name: Commit updated data
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add data/*.csv reports/*.md || true
+          git commit -m "Daily update" || true
+          git push || true
